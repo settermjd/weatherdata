@@ -38,6 +38,32 @@ type WeatherDataService struct {
 	db *sql.DB
 }
 
+// BuildSearchQuery returns a parameterised SQL query string to run against the
+// database along with the parameters to replace the placeholders with, based
+// on the search parameters provided.
+func (wds *WeatherDataService) BuildSearchQuery(searchParams WeatherDataSearchParams) (string, []string) {
+	var queryParameters []string
+	searchQuery := `SELECT humidity, temperature, timestamp FROM %s`
+
+	if searchParams.StartDate != "" && searchParams.EndDate != "" {
+		searchQuery = searchQuery + " WHERE timestamp BETWEEN ? AND ? "
+		queryParameters = append(queryParameters, searchParams.StartDate, searchParams.EndDate)
+		return searchQuery, queryParameters
+	}
+
+	if searchParams.StartDate != "" {
+		searchQuery = searchQuery + " WHERE timestamp >= ? "
+		queryParameters = append(queryParameters, searchParams.StartDate)
+	}
+
+	if searchParams.EndDate != "" {
+		searchQuery = searchQuery + " WHERE timestamp <= ? "
+		queryParameters = append(queryParameters, searchParams.EndDate)
+	}
+
+	return searchQuery, queryParameters
+}
+
 // NewWeatherDataService returns a new WeatherDataService with an open database
 // handle.
 func NewWeatherDataService(db *sql.DB) *WeatherDataService {
@@ -53,22 +79,8 @@ func NewWeatherDataService(db *sql.DB) *WeatherDataService {
 // WeatherDataSearchParams struct. By default, the struct is assumbed to be
 // empty.
 func (wds *WeatherDataService) GetWeatherData(searchParams WeatherDataSearchParams) []WeatherData {
-	searchQuery := `SELECT humidity, temperature, timestamp FROM %s`
-	var queryParameters []string
 
-	if searchParams.StartDate != "" && searchParams.EndDate != "" {
-		searchQuery = searchQuery + " WHERE timestamp BETWEEN ? AND ? "
-		queryParameters = append(queryParameters, searchParams.StartDate, searchParams.EndDate)
-	} else {
-		if searchParams.StartDate != "" {
-			searchQuery = searchQuery + " WHERE timestamp >= ? "
-			queryParameters = append(queryParameters, searchParams.StartDate)
-		}
-		if searchParams.EndDate != "" {
-			searchQuery = searchQuery + " WHERE timestamp <= ? "
-			queryParameters = append(queryParameters, searchParams.EndDate)
-		}
-	}
+	searchQuery, queryParameters := wds.BuildSearchQuery(searchParams)
 
 	rows, err := wds.db.Query(
 		fmt.Sprintf(searchQuery, WeatherTable),
